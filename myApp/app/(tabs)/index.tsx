@@ -8,7 +8,7 @@ import { Dimensions } from 'react-native';
 import moodService from '../../src/services/moodService';
 import { Mood, MoodSummary } from '../../src/models/Mood';
 import { Picker } from '@react-native-picker/picker';
-import { addDoc, collection, query, where, orderBy, getDocs, Timestamp } from 'firebase/firestore';
+import { addDoc, collection, query, where, orderBy, getDocs, Timestamp, doc } from 'firebase/firestore';
 import { db } from '../../src/config/firebase';
 
 // Tip tanımlamaları
@@ -90,7 +90,9 @@ export default function Home() {
     waterIntake: '',
     nutritionQuality: '3',
     mood: 'İyi',
-    notes: ''
+    notes: '',
+    activityType: '',
+    activityDuration: ''
   });
   const [loading, setLoading] = useState(false);
   const [weeklyData, setWeeklyData] = useState<WeeklyDataState>({
@@ -107,6 +109,9 @@ export default function Home() {
   const [breathingState, setBreathingState] = useState('idle'); // 'idle', 'inhale', 'exhale'
   const [breathingText, setBreathingText] = useState('Başla');
   const breathingAnimation = React.useRef(new Animated.Value(1)).current;
+  const [selectedActivity, setSelectedActivity] = useState<string | null>(null);
+  const [activityDuration, setActivityDuration] = useState('');
+  const [activityLoading, setActivityLoading] = useState(false);
 
   const quotes = [
     "Bugün kendine iyi davran, yarın için teşekkür edeceksin.",
@@ -371,7 +376,7 @@ export default function Home() {
     }
   };
 
-  const handleSubmit = async () => {
+  const handleDailySave = async () => {
     try {
       setLoading(true);
       const userId = await AsyncStorage.getItem('userId');
@@ -411,7 +416,9 @@ export default function Home() {
           waterIntake: '',
           nutritionQuality: '3',
           mood: 'İyi',
-          notes: ''
+          notes: '',
+          activityType: '',
+          activityDuration: ''
         });
 
         // Haftalık verileri güncelle
@@ -578,11 +585,28 @@ export default function Home() {
     updateText();
   };
 
-  const stopBreathingExercise = () => {
+  const stopBreathingExercise = async () => {
     setIsBreathingActive(false);
     setBreathingText('Başla');
     breathingAnimation.stopAnimation();
     breathingAnimation.setValue(1);
+
+    try {
+      const userId = await AsyncStorage.getItem('userId');
+      if (!userId) {
+        Alert.alert('Hata', 'Kullanıcı oturumu bulunamadı');
+        return;
+      }
+      await addDoc(collection(db, 'breath_exercise_logs'), {
+        userId,
+        timestamp: new Date(),
+        status: 'success'
+      });
+      Alert.alert('Başarılı', 'Nefes egzersizi başarıyla kaydedildi!');
+    } catch (error) {
+      console.error('Nefes egzersizi eklenemedi:', error);
+      Alert.alert('Hata', 'Nefes egzersizi kaydedilemedi.');
+    }
   };
 
   // Dark mode yönetimi
@@ -604,6 +628,30 @@ export default function Home() {
       await AsyncStorage.setItem('themePreference', newTheme ? 'dark' : 'light');
     } catch (error) {
       console.error('Tema değiştirilirken hata:', error);
+    }
+  };
+
+  const handleActivitySave = async () => {
+    try {
+      setActivityLoading(true);
+      const userId = await AsyncStorage.getItem('userId');
+      if (!userId) {
+        Alert.alert('Hata', 'Kullanıcı oturumu bulunamadı');
+        return;
+      }
+      await addDoc(collection(db, 'moods'), {
+        userId,
+        activityType: selectedActivity,
+        duration: activityDuration,
+        timestamp: new Date()
+      });
+      Alert.alert('Başarılı', 'Aktivite kaydedildi!');
+      setSelectedActivity(null);
+      setActivityDuration('');
+    } catch (error) {
+      Alert.alert('Hata', 'Aktivite kaydedilemedi.');
+    } finally {
+      setActivityLoading(false);
     }
   };
 
@@ -753,7 +801,7 @@ export default function Home() {
 
         <TouchableOpacity
           style={[styles.submitButton, loading && styles.buttonDisabled]}
-          onPress={handleSubmit}
+          onPress={handleDailySave}
           disabled={loading}
         >
           <Text style={styles.submitButtonText}>
@@ -767,6 +815,56 @@ export default function Home() {
         >
           <Text style={[styles.submitButtonText, { color: '#fff' }]}>Haftalık Özet</Text>
         </TouchableOpacity>
+      </View>
+
+      <View style={{ margin: 16 }}>
+        <Text style={{ fontWeight: 'bold', fontSize: 18, marginBottom: 10 }}>Aktivite Seç</Text>
+        <View>
+          {['Egzersiz', 'Meditasyon', 'Okuma', 'Yürüyüş'].map((activity) => (
+            <TouchableOpacity
+              key={activity}
+              style={{
+                backgroundColor: dailyData.activityType === activity ? '#6a5acd' : '#f3f3fa',
+                paddingVertical: 18,
+                borderRadius: 14,
+                marginBottom: 12,
+                alignItems: 'center',
+                borderWidth: dailyData.activityType === activity ? 2 : 1,
+                borderColor: dailyData.activityType === activity ? '#6a5acd' : '#e9e7ff',
+                shadowColor: '#6a5acd',
+                shadowOpacity: dailyData.activityType === activity ? 0.15 : 0.05,
+                shadowOffset: { width: 0, height: 2 },
+                shadowRadius: 8,
+                elevation: dailyData.activityType === activity ? 4 : 1,
+              }}
+              onPress={() => setDailyData({ ...dailyData, activityType: activity })}
+            >
+              <Text style={{ color: dailyData.activityType === activity ? '#fff' : '#6a5acd', fontWeight: 'bold', fontSize: 16 }}>{activity}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        {dailyData.activityType && (
+          <View style={{ marginTop: 10 }}>
+            <Text style={{ marginBottom: 5, fontWeight: '500', color: '#6a5acd' }}>{dailyData.activityType} Süresi (dakika):</Text>
+            <TextInput
+              style={{
+                borderWidth: 1,
+                borderColor: '#e9e7ff',
+                borderRadius: 10,
+                padding: 12,
+                marginBottom: 10,
+                fontSize: 16,
+                backgroundColor: '#fff',
+                color: '#495057',
+              }}
+              value={dailyData.activityDuration}
+              onChangeText={(val) => setDailyData({ ...dailyData, activityDuration: val })}
+              keyboardType="numeric"
+              placeholder="Süre girin"
+              placeholderTextColor="#a0a0a0"
+            />
+          </View>
+        )}
       </View>
     </ScrollView>
   );

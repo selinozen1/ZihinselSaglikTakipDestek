@@ -8,7 +8,7 @@ import { Dimensions } from 'react-native';
 import moodService from '../../src/services/moodService';
 import { Mood, MoodSummary } from '../../src/models/Mood';
 import { Picker } from '@react-native-picker/picker';
-import { addDoc, collection, query, where, orderBy, getDocs, Timestamp } from 'firebase/firestore';
+import { addDoc, collection, query, where, orderBy, getDocs, Timestamp, doc } from 'firebase/firestore';
 import { db } from '../../src/config/firebase';
 
 // Tip tanımlamaları
@@ -41,6 +41,15 @@ interface WeeklyDataState {
   waterData: number[];
   moodData: number[];
 }
+
+const activityList = [
+  { name: 'Egzersiz', color: '#ff7043' },
+  { name: 'Meditasyon', color: '#8e24aa' },
+  { name: 'Okuma', color: '#1976d2' },
+  { name: 'Yürüyüş', color: '#43a047' }
+] as const;
+
+type ActivityName = typeof activityList[number]['name'];
 
 // Tema renkleri
 const theme = {
@@ -84,13 +93,27 @@ export default function Home() {
   const [meditationDuration, setMeditationDuration] = useState('');
   const [meditationNotes, setMeditationNotes] = useState('');
   const [userId, setUserId] = useState<string | null>(null);
-  const [dailyData, setDailyData] = useState({
+  const [dailyData, setDailyData] = useState<{
+    sleepHours: string;
+    stressLevel: string;
+    waterIntake: string;
+    nutritionQuality: string;
+    mood: string;
+    notes: string;
+    activities: Record<ActivityName, { done: boolean; duration?: string; pageCount?: string }>;
+  }>({
     sleepHours: '',
     stressLevel: '3',
     waterIntake: '',
     nutritionQuality: '3',
     mood: 'İyi',
-    notes: ''
+    notes: '',
+    activities: {
+      Egzersiz: { done: false, duration: '' },
+      Meditasyon: { done: false, duration: '' },
+      Okuma: { done: false, pageCount: '' },
+      Yürüyüş: { done: false, duration: '' }
+    }
   });
   const [loading, setLoading] = useState(false);
   const [weeklyData, setWeeklyData] = useState<WeeklyDataState>({
@@ -107,6 +130,9 @@ export default function Home() {
   const [breathingState, setBreathingState] = useState('idle'); // 'idle', 'inhale', 'exhale'
   const [breathingText, setBreathingText] = useState('Başla');
   const breathingAnimation = React.useRef(new Animated.Value(1)).current;
+  const [selectedActivity, setSelectedActivity] = useState<string | null>(null);
+  const [activityDuration, setActivityDuration] = useState('');
+  const [activityLoading, setActivityLoading] = useState(false);
 
   const quotes = [
     "Bugün kendine iyi davran, yarın için teşekkür edeceksin.",
@@ -371,7 +397,7 @@ export default function Home() {
     }
   };
 
-  const handleSubmit = async () => {
+  const handleDailySave = async () => {
     try {
       setLoading(true);
       const userId = await AsyncStorage.getItem('userId');
@@ -386,8 +412,7 @@ export default function Home() {
         return;
       }
 
-      // moods koleksiyonuna veri ekle
-      const moodDoc = {
+      const moodDoc: any = {
         userId,
         mood: dailyData.mood,
         sleepHours: parseFloat(dailyData.sleepHours),
@@ -395,28 +420,49 @@ export default function Home() {
         waterIntake: parseFloat(dailyData.waterIntake),
         notes: dailyData.notes || '',
         createdAt: new Date(),
-        updatedAt: new Date()
+        updatedAt: new Date(),
+        activities: {
+          Egzersiz: {
+            done: dailyData.activities.Egzersiz.done,
+            duration: dailyData.activities.Egzersiz.duration || ''
+          },
+          Meditasyon: {
+            done: dailyData.activities.Meditasyon.done,
+            duration: dailyData.activities.Meditasyon.duration || ''
+          },
+          Okuma: {
+            done: dailyData.activities.Okuma.done,
+            pageCount: dailyData.activities.Okuma.pageCount || ''
+          },
+          Yürüyüş: {
+            done: dailyData.activities.Yürüyüş.done,
+            duration: dailyData.activities.Yürüyüş.duration || ''
+          }
+        }
       };
 
-      // Firestore'a veriyi ekle
-      const docRef = await addDoc(collection(db, 'moods'), moodDoc);
+      await addDoc(collection(db, 'moods'), moodDoc);
       
-      if (docRef.id) {
-        Alert.alert('Başarılı', 'Günlük verileriniz kaydedildi');
-        
-        // Form'u sıfırla
-        setDailyData({
-          sleepHours: '',
-          stressLevel: '3',
-          waterIntake: '',
-          nutritionQuality: '3',
-          mood: 'İyi',
-          notes: ''
-        });
+      Alert.alert('Başarılı', 'Günlük verileriniz kaydedildi');
+      
+      // Form'u sıfırla
+      setDailyData({
+        sleepHours: '',
+        stressLevel: '3',
+        waterIntake: '',
+        nutritionQuality: '3',
+        mood: 'İyi',
+        notes: '',
+        activities: {
+          Egzersiz: { done: false, duration: '' },
+          Meditasyon: { done: false, duration: '' },
+          Okuma: { done: false, pageCount: '' },
+          Yürüyüş: { done: false, duration: '' }
+        }
+      });
 
-        // Haftalık verileri güncelle
-        await loadWeeklyData();
-      }
+      // Haftalık verileri güncelle
+      await loadWeeklyData();
     } catch (error: any) {
       console.error('Veri kaydedilirken hata:', error);
       Alert.alert('Hata', 'Veri kaydedilirken bir hata oluştu. Lütfen tekrar deneyin.');
@@ -578,11 +624,28 @@ export default function Home() {
     updateText();
   };
 
-  const stopBreathingExercise = () => {
+  const stopBreathingExercise = async () => {
     setIsBreathingActive(false);
     setBreathingText('Başla');
     breathingAnimation.stopAnimation();
     breathingAnimation.setValue(1);
+
+    try {
+      const userId = await AsyncStorage.getItem('userId');
+      if (!userId) {
+        Alert.alert('Hata', 'Kullanıcı oturumu bulunamadı');
+        return;
+      }
+      await addDoc(collection(db, 'breathing_exercises'), {
+        userId,
+        timestamp: new Date(),
+        status: 'success'
+      });
+      Alert.alert('Tebrikler!', 'Nefes egzersizini başarıyla tamamladın ve kaydettik.');
+    } catch (error) {
+      console.error('Nefes egzersizi eklenemedi:', error);
+      Alert.alert('Hata', 'Nefes egzersizi kaydedilemedi.');
+    }
   };
 
   // Dark mode yönetimi
@@ -604,6 +667,30 @@ export default function Home() {
       await AsyncStorage.setItem('themePreference', newTheme ? 'dark' : 'light');
     } catch (error) {
       console.error('Tema değiştirilirken hata:', error);
+    }
+  };
+
+  const handleActivitySave = async () => {
+    try {
+      setActivityLoading(true);
+      const userId = await AsyncStorage.getItem('userId');
+      if (!userId) {
+        Alert.alert('Hata', 'Kullanıcı oturumu bulunamadı');
+        return;
+      }
+      await addDoc(collection(db, 'moods'), {
+        userId,
+        activityType: selectedActivity,
+        duration: activityDuration,
+        timestamp: new Date()
+      });
+      Alert.alert('Başarılı', 'Aktivite kaydedildi!');
+      setSelectedActivity(null);
+      setActivityDuration('');
+    } catch (error) {
+      Alert.alert('Hata', 'Aktivite kaydedilemedi.');
+    } finally {
+      setActivityLoading(false);
     }
   };
 
@@ -666,7 +753,7 @@ export default function Home() {
         </View>
       </View>
 
-      <View style={[styles.formContainer, { backgroundColor: colors.card }]}>
+      <View style={styles.formContainer}>
         <Text style={styles.sectionTitle}>Günlük Durum Takibi</Text>
         
         <View style={styles.inputContainer}>
@@ -751,9 +838,98 @@ export default function Home() {
           />
         </View>
 
+        <View style={{ marginTop: 10 }}>
+          <Text style={{ fontWeight: 'bold', fontSize: 16, marginBottom: 10 }}>Aktivite Seç</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
+            {activityList.map((activity) => (
+              <TouchableOpacity
+                key={activity.name}
+                style={{
+                  backgroundColor: dailyData.activities[activity.name].done ? activity.color : '#f3f3fa',
+                  paddingVertical: 18,
+                  borderRadius: 14,
+                  marginBottom: 12,
+                  alignItems: 'center',
+                  borderWidth: dailyData.activities[activity.name].done ? 2 : 1,
+                  borderColor: dailyData.activities[activity.name].done ? activity.color : '#e9e7ff',
+                  shadowColor: activity.color,
+                  shadowOpacity: dailyData.activities[activity.name].done ? 0.18 : 0.05,
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowRadius: 8,
+                  elevation: dailyData.activities[activity.name].done ? 4 : 1,
+                  width: '48%',
+                }}
+                onPress={() =>
+                  setDailyData({
+                    ...dailyData,
+                    activities: {
+                      ...dailyData.activities,
+                      [activity.name]: {
+                        ...dailyData.activities[activity.name],
+                        done: !dailyData.activities[activity.name].done
+                      }
+                    }
+                  })
+                }
+              >
+                <Text style={{
+                  color: dailyData.activities[activity.name].done ? '#fff' : activity.color,
+                  fontWeight: 'bold',
+                  fontSize: 16
+                }}>
+                  {activity.name}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          {Object.entries(dailyData.activities).map(([activity, data]) => (
+            data.done && (
+              <View key={activity} style={{ marginTop: 10 }}>
+                <Text style={{ marginBottom: 5, fontWeight: '500', color: '#6a5acd' }}>
+                  {activity === 'Okuma'
+                    ? 'Okunan Sayfa Sayısı:'
+                    : `${activity} Süresi (dakika):`}
+                </Text>
+                <TextInput
+                  style={{
+                    borderWidth: 1,
+                    borderColor: '#e9e7ff',
+                    borderRadius: 10,
+                    padding: 12,
+                    marginBottom: 10,
+                    fontSize: 16,
+                    backgroundColor: '#fff',
+                    color: '#495057',
+                  }}
+                  value={activity === 'Okuma' ? data.pageCount : data.duration}
+                  onChangeText={(val) =>
+                    setDailyData({
+                      ...dailyData,
+                      activities: {
+                        ...dailyData.activities,
+                        [activity]: {
+                          ...data,
+                          ...(activity === 'Okuma' ? { pageCount: val } : { duration: val })
+                        }
+                      }
+                    })
+                  }
+                  keyboardType="numeric"
+                  placeholder={
+                    activity === 'Okuma'
+                      ? 'Sayfa sayısı girin'
+                      : 'Süre girin'
+                  }
+                  placeholderTextColor="#a0a0a0"
+                />
+              </View>
+            )
+          ))}
+        </View>
+
         <TouchableOpacity
           style={[styles.submitButton, loading && styles.buttonDisabled]}
-          onPress={handleSubmit}
+          onPress={handleDailySave}
           disabled={loading}
         >
           <Text style={styles.submitButtonText}>

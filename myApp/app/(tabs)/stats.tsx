@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Dimensions, TouchableOpacity, Alert } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, Dimensions, TouchableOpacity, Alert, Animated } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { collection, query, where, orderBy, getDocs, Timestamp } from 'firebase/firestore';
+import { collection, query, where, orderBy, getDocs, Timestamp, addDoc } from 'firebase/firestore';
 import { db } from '../../src/config/firebase';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -32,6 +32,7 @@ export default function Stats() {
     moodData: []
   });
   const router = useRouter();
+  const breathingAnimation = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     loadWeeklyData();
@@ -40,7 +41,10 @@ export default function Stats() {
   const loadWeeklyData = async () => {
     try {
       const userId = await AsyncStorage.getItem('userId');
-      if (!userId) return;
+      if (!userId) {
+        Alert.alert('Hata', 'Kullanıcı bilgisi bulunamadı');
+        return;
+      }
 
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
@@ -49,22 +53,36 @@ export default function Stats() {
         collection(db, 'moods'),
         where('userId', '==', userId),
         where('createdAt', '>=', Timestamp.fromDate(sevenDaysAgo)),
-        orderBy('createdAt', 'asc'),
-        orderBy('__name__', 'asc')
+        orderBy('createdAt', 'asc')
       );
 
       const querySnapshot = await getDocs(q);
+      
+      // Veri yoksa varsayılan değerlerle doldur
+      if (querySnapshot.empty) {
+        setWeeklyData({
+          sleepData: Array(7).fill(0),
+          stressData: Array(7).fill(0),
+          waterData: Array(7).fill(0),
+          moodData: Array(7).fill(3)
+        });
+        return;
+      }
+
       const data = querySnapshot.docs.map(doc => ({
         ...doc.data(),
         date: doc.data().createdAt.toDate()
       })) as DailyData[];
 
-      // Verileri tarihe göre sırala (en yeniden eskiye)
-      const sortedData = data.reverse();
+      // Verileri tarihe göre sırala
+      const sortedData = data.sort((a, b) => a.date.getTime() - b.date.getTime());
 
-      const sleepData = sortedData.map(d => d.sleepHours || 0);
-      const stressData = sortedData.map(d => d.stressLevel || 0);
-      const waterData = sortedData.map(d => d.waterIntake || 0);
+      // Son 7 günün verilerini al
+      const last7DaysData = sortedData.slice(-7);
+
+      const sleepData = last7DaysData.map(d => d.sleepHours || 0);
+      const stressData = last7DaysData.map(d => d.stressLevel || 0);
+      const waterData = last7DaysData.map(d => d.waterIntake || 0);
       const moodValues = {
         'Çok İyi': 5,
         'İyi': 4,
@@ -72,7 +90,7 @@ export default function Stats() {
         'Kötü': 2,
         'Çok Kötü': 1
       };
-      const moodData = sortedData.map(d => moodValues[d.mood] || 3);
+      const moodData = last7DaysData.map(d => moodValues[d.mood] || 3);
 
       setWeeklyData({
         sleepData,
@@ -82,7 +100,7 @@ export default function Stats() {
       });
     } catch (error) {
       if (error instanceof Error) {
-        Alert.alert('Hata', 'Haftalık veri yüklenirken hata: ' + error.message);
+        Alert.alert('Hata', 'Veriler yüklenirken bir hata oluştu: ' + error.message);
       }
     }
   };
@@ -126,6 +144,28 @@ export default function Stats() {
     );
   };
 
+  const stopBreathingExercise = async () => {
+    breathingAnimation.stopAnimation();
+    breathingAnimation.setValue(1);
+
+    try {
+      const userId = await AsyncStorage.getItem('userId');
+      if (!userId) {
+        Alert.alert('Hata', 'Kullanıcı oturumu bulunamadı');
+        return;
+      }
+      await addDoc(collection(db, 'breathing_exercises_logs'), {
+        userId,
+        timestamp: new Date(),
+        status: 'success'
+      });
+      Alert.alert('Başarılı', 'Nefes egzersizi başarıyla kaydedildi!');
+    } catch (error) {
+      console.error('Nefes egzersizi eklenemedi:', error);
+      Alert.alert('Hata', 'Nefes egzersizi kaydedilemedi.');
+    }
+  };
+
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
@@ -143,22 +183,33 @@ export default function Stats() {
         <View style={styles.summaryItem}>
           <Text style={styles.summaryLabel}>Ortalama Uyku:</Text>
           <Text style={styles.summaryValue}>
-            {(weeklyData.sleepData.reduce((a, b) => a + b, 0) / weeklyData.sleepData.length || 0).toFixed(1)} saat
+            {weeklyData.sleepData.length > 0 
+              ? (Number(weeklyData.sleepData.reduce((a, b) => Number(a) + Number(b), 0)) / weeklyData.sleepData.length).toFixed(1)
+              : '0.0'} saat
           </Text>
         </View>
         <View style={styles.summaryItem}>
           <Text style={styles.summaryLabel}>Ortalama Stres:</Text>
           <Text style={styles.summaryValue}>
-            {(weeklyData.stressData.reduce((a, b) => a + b, 0) / weeklyData.stressData.length || 0).toFixed(1)} / 5
+            {weeklyData.stressData.length > 0
+              ? (Number(weeklyData.stressData.reduce((a, b) => Number(a) + Number(b), 0)) / weeklyData.stressData.length).toFixed(1)
+              : '0.0'} / 5
           </Text>
         </View>
         <View style={styles.summaryItem}>
           <Text style={styles.summaryLabel}>Toplam Su Tüketimi:</Text>
           <Text style={styles.summaryValue}>
-            {weeklyData.waterData.reduce((a, b) => a + b, 0).toFixed(1)} litre
+            {Number(
+              weeklyData.waterData && weeklyData.waterData.length > 0
+                ? weeklyData.waterData.reduce((a, b) => Number(a) + Number(b), 0)
+                : 0
+            ).toFixed(1)} litre
           </Text>
         </View>
       </View>
+      <TouchableOpacity onPress={stopBreathingExercise}>
+        <Text>Nefes Egzersizini Bitir</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 }

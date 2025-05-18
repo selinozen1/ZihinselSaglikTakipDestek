@@ -1,6 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Firebase yapılandırma bilgileriniz
 const firebaseConfig = {
@@ -17,7 +18,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 
 // Auth ve Firestore örneklerini al
-const auth = getAuth(app);
+const auth = getAuth(app); 
 const db = getFirestore(app);
 
 export { db, auth }; 

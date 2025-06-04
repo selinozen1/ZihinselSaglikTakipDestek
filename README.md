@@ -36,19 +36,19 @@ npx expo start
 
 ## 🚀 Özellikler
 
-Kategori                                                                  Açıklama
+Kategori:                                                                  Açıklama
 
-Günlük Veri Girişi                                            Uyku, stres, su tüketimi, aktivite ve ruh hâli kaydı
+Günlük Veri Girişi:                                            Uyku, stres, su tüketimi, aktivite ve ruh hâli kaydı
 
-Grafikler                                                     Günlük / haftalık / aylık trendler (Recharts)
+Grafikler:                                                     Günlük / haftalık / aylık trendler (Recharts)
 
-AI Tavsiyesi                                                  Google Gemini API ile kişisel öneriler
+AI Tavsiyesi :                                                 Google Gemini API ile kişisel öneriler
 
-Kullanıcı Kimliği                                             Firebase Auth (e‑posta + şifre)
+Kullanıcı Kimliği:                                             Firebase Auth (e‑posta + şifre)
 
-Veri Saklama                                                  Firestore bulut veritabanı
+Veri Saklama:                                                  Firestore bulut veritabanı
 
-Dark Mode                                                     MUI temalarıyla anında geçiş
+Dark Mode:                                                     MUI temalarıyla anında geçiş
 
 
 ## 🏗️ Teknoloji Yığını
@@ -59,13 +59,13 @@ Mobil:                                                           React Native
 
 UI Kit:                                                          React Native Paper
 
-State                                                            React Context / Hooks
+State:                                                            React Context / Hooks
 
-Veritabanı                                                         Firebase Firestore
+Veritabanı:                                                         Firebase Firestore
 
-Kimlik Doğrulama                                                   Firebase Auth
+Kimlik Doğrulama:                                                   Firebase Auth
 
-Yapay Zeka                                                         Gemini API (Google Generative Language)
+Yapay Zeka:                                                         Gemini API (Google Generative Language)
 
 
 

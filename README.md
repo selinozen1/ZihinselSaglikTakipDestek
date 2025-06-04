@@ -1,10 +1,38 @@
-# 🌿 Zihinsel Sağlık Takip Uygulaması – Web
+# 📱 Zihinsel Sağlık Takip Uygulaması – Mobile
 
-# 🧩 Proje Özeti
+# 🌿 Uygulama Amacı
 
-Kullanıcıların ruh hâli, stres seviyesi, uyku süresi ve günlük aktiviteleri gibi verileri kaydedip görselleştirebildiği, yapay zeka (Gemini API) ile kişiselleştirilmiş öneriler sunan bir zihinsel sağlık platformu.
+Kullanıcıların günlük ruh hali, stres seviyesi, uyku, su tüketimi ve aktivitelerini takip etmelerine olanak tanıyan; yapay zeka destekli (Gemini API) kişisel öneriler sunan mobil uygulama.
 
+# 🔧 Kurulum
 
+# ✅ Gereksinimler:
+
+Node.js
+
+Expo CLI (npm install -g expo-cli)
+
+Android/iOS emulator veya fiziksel cihaz
+
+## ⚡ Projeyi çalıştırmak için:
+git clone https://github.com/kullaniciAdi/proje-adi.git
+cd proje-adi/mobile
+npm install
+npx expo start
+
+## 🔎 Temel Özellikler
+
+✍️ Kullanıcı girişi / kayıt
+
+😷 Günlük ruh hali, stres, uyku verisi girme
+
+📊 Haftalık, aylık grafiksel takip
+
+🤖 AI önerisi: Kullanıcı verisine göre pozitif tavsiyeler
+
+🌐 Çevrimdışı mod (AsyncStorage ile veri saklama)
+
+✨ Dark/Light tema
 
 ## 🚀 Özellikler
 
@@ -27,13 +55,11 @@ Dark Mode                                                     MUI temalarıyla 
 
 Katman                                                                    Teknoloji
 
-Frontend                                                           React 18 + Vite
+Mobil:                                                           React Native
 
-UI Kit                                                             Material UI (MUI) v5 + Emotion
+UI Kit:                                                          React Native Paper
 
-Grafik                                                             Recharts
-
-Durum Yönetimi                                                     React Context + useReducer (küçük ölçekli)
+State                                                            React Context / Hooks
 
 Veritabanı                                                         Firebase Firestore
 
@@ -41,64 +67,9 @@ Kimlik Doğrulama                                                   Firebase Au
 
 Yapay Zeka                                                         Gemini API (Google Generative Language)
 
-Test                                                               Vitest + React Testing Library
 
 
-## ⚙️ Kurulum
 
-1. Depoyu Klonla
-
-git clone https://github.com/kullanici/zihinsel-saglik-web.git
-cd zihinsel-saglik-web
-
-2. Bağımlılıkları Yükle
-
-npm install   # veya pnpm / yarn
-
-3. Ortam Değişkenlerini Ayarla
-
-.env.example dosyasını .env olarak kopyala ve ilgili alanları doldur:
-
-VITE_FIREBASE_API_KEY=
-VITE_FIREBASE_AUTH_DOMAIN=
-VITE_FIREBASE_PROJECT_ID=
-VITE_FIREBASE_APP_ID=
-VITE_GEMINI_API_KEY=
-
-API Anahtarları gizli değildir fakat Firestore güvenlik kurallarınızın doğru olduğundan emin olun.
-
-4. Geliştirme Sunucusunu Başlat
-
-npm run dev
-
-Uygulama http://localhost:3000 adresinde çalışır.
-
-
-## 🧪 Test Çalıştırma
-
-npm run
-
-
-## 🔑 Firebase Yapılandırması
-
-Firebase Console > Proje oluştur.
-
-Authentication → Email/Password etkinleştir.
-
-Firestore DB oluştur ve güvenlik kurallarını ayarla:
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /users/{userId} {
-      allow read, write: if request.auth.uid == userId;
-    }
-  }
-}
-Web app ekle, konfigürasyon değerlerini .env dosyasına kopyala.
-
-## 🤖 AI Entegrasyonu
-
-services/aiAnalysisService.js içinde createWeeklyPrompt()
 
 Google AI Studio’dan alınan Gemini API Key .env içinde.
 
